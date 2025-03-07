@@ -11,6 +11,7 @@ from django.views.generic import UpdateView # for gcbv
 from django.utils import timezone # for gcbv
 from django.utils.decorators import method_decorator
 from django.views.generic import ListView
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 
 
@@ -22,12 +23,25 @@ class BoardListView(ListView):
     template_name = 'home.html'
 
 def board_topics(request, pk):
-    # try:
-    #     board = Board.objects.get(pk=pk)
-    # except  Board.DoesNotExist:
-    #     raise Http404
+    
     board = get_object_or_404(Board, pk=pk)
-    return render(request, 'topics.html', {'board': board})
+    queryset = board.topics.order_by('-last_updated').annotate(replies=Count('posts') - 1)
+    page = request.GET.get('page', 1)
+    
+    paginator = Paginator(queryset, 20)
+   
+
+    try:
+        topics = paginator.page(page)
+    except PageNotAnInteger:
+        # fallback to the first page
+        topics = paginator.page(1)
+    except EmptyPage:
+        # probably the user tried to add a page number
+        # in the url, so we fallback to the last page
+        topics = paginator.page(paginator.num_pages)
+
+    return render(request, 'topics.html', {'board': board, 'topics': topics})
 
 # if we want to use {{ form.as_p }} in html
 @login_required
@@ -74,10 +88,10 @@ def reply_topic(request, pk, topic_pk):
         form = PostForm()
     return render(request, 'reply_topic.html', {'topic': topic, 'form': form})
 
-def board_topics(request, pk):
-    board = get_object_or_404(Board, pk=pk)
-    topics = board.topics.order_by('-last_updated').annotate(replies=Count('posts') - 1)
-    return render(request, 'topics.html', {'board': board, 'topics': topics})
+# def board_topics(request, pk):
+#     board = get_object_or_404(Board, pk=pk)
+#     topics = board.topics.order_by('-last_updated').annotate(replies=Count('posts') - 1)
+#     return render(request, 'topics.html', {'board': board, 'topics': topics})
 
 
 @method_decorator(login_required, name='dispatch')
